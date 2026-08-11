@@ -8,11 +8,11 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "RUN_LOCALSTACK_INTEGRATION=1 vitest run src/lambdas/sessions/tests/dynamodb.integration.test.ts",
+    "test:integration": "RUN_LOCALSTACK_INTEGRATION=1 vitest run tests/lambdas/sessions/infrastructure/repositories/dynamodb-session-repository.integration.test.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "lint": "eslint src tests",
+    "format": "prettier --write src tests",
+    "format:check": "prettier --check src tests"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.965.0",

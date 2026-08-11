@@ -4,5 +4,5 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(js.configs.recommended, ...tseslint.configs.recommended, prettier, {
   rules: { '@typescript-eslint/consistent-type-imports': 'error' },
-  ignores: ['dist/**', 'node_modules/**']
+  ignores: ['dist/**', 'node_modules/**'],
 });

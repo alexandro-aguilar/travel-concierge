@@ -9,7 +9,7 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "."
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

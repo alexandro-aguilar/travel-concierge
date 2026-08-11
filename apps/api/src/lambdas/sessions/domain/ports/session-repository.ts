@@ -8,7 +8,12 @@ export interface NewSession {
 
 export interface SessionRepository {
   create(session: NewSession): Promise<void>;
-  appendMessage(sessionId: string, message: SessionMessage, expectedVersion: number, expiresAt: number): Promise<SessionMetadata>;
+  appendMessage(
+    sessionId: string,
+    message: SessionMessage,
+    expectedVersion: number,
+    expiresAt: number,
+  ): Promise<SessionMetadata>;
   getMetadata(sessionId: string): Promise<SessionMetadata | undefined>;
   getMessages(sessionId: string, cursor?: string): Promise<MessagePage>;
   getTrip(sessionId: string): Promise<Trip | undefined>;
