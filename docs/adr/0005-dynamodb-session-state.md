@@ -10,13 +10,13 @@ The concierge needs durable conversation context, trip requirements, recommendat
 
 ## Decision
 
-Persist normalized records in DynamoDB under `PK = SESSION#{sessionId}` with `SK = METADATA`, `MESSAGE#{timestamp}#{messageId}`, and `TRIP`. The trip record contains requirements, selected options, recommendation, workflow state, and simulated-booking result. Repository ports encapsulate conditional writes and optimistic state transitions. Do not persist raw provider responses, prompts containing secrets, authorization headers, or credentials.
+Persist normalized records in DynamoDB under `PK = SESSION#{sessionId}` with `SK = METADATA`, `MESSAGE#{timestamp}#{messageId}`, and `TRIP`. The trip record contains requirements, selected options, recommendation, workflow state, and simulated-booking result. Repository ports encapsulate conditional writes and optimistic state transitions. Do not persist raw provider responses, prompts containing secrets, authorization headers, or credentials. Sessions are anonymous initially and all normalized records receive an `expiresAt` DynamoDB TTL attribute, with a configurable 30-day default. User messages are trimmed and limited to 4,000 characters.
 
 ## Consequences
 
 - Session retrieval is a single partition query.
 - Conditional updates prevent duplicate approvals and invalid state transitions.
-- Retention/TTL and encryption settings must be selected in Terraform before production use.
+- Terraform enables DynamoDB TTL with a 30-day default; encryption uses DynamoDB's managed default.
 
 ## Alternatives considered
 

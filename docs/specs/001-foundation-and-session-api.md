@@ -49,7 +49,7 @@ The client creates a session, sends messages, and can reload the session/trip af
 | Security | Untrusted body/path input is validated | Zod at handler boundary; no secrets/raw bodies in logs. |
 | Observability | Every request is correlated | Structured fields required by ADR-0007. |
 
-Open question: select session TTL/retention and authentication before production; owner: platform/security review.
+Sessions are anonymous in this phase. Records expire after 30 days by default through DynamoDB TTL (`SESSION_TTL_DAYS` is configurable); authentication remains deferred to an approved design.
 
 ## 3. Architecture and boundaries
 
@@ -83,7 +83,7 @@ Use ISO-8601 timestamps, opaque generated IDs, a record version, and conditional
 | `GET /sessions/{id}` | — | metadata and normalized messages | `404` |
 | `GET /sessions/{id}/trip` | — | normalized trip state | `404` |
 
-`message` must be trimmed and bounded (exact maximum to be set with UX/security review); an empty value is invalid. Error bodies are `{ code: string, message: string, requestId: string }` and never include stacks/provider payloads.
+`message` is trimmed, must contain 1–4,000 characters after trimming, and is accepted only while the trip is `COLLECTING_REQUIREMENTS`. Session transcripts are paginated newest-first, returning at most 50 messages and an opaque cursor for older messages. Error bodies are `{ code: string, message: string, requestId: string }` and never include stacks/provider payloads.
 
 ## 6. Infrastructure, testing, and rollout
 
