@@ -1,0 +1,35 @@
+{
+  "name": "travel-concierge-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "RUN_LOCALSTACK_INTEGRATION=1 vitest run src/lambdas/sessions/tests/dynamodb.integration.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.965.0",
+    "@aws-sdk/lib-dynamodb": "^3.965.0",
+    "@types/aws-lambda": "^8.10.152",
+    "inversify": "^7.10.6",
+    "reflect-metadata": "^0.2.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vitest": "^4.0.14"
+  }
+}

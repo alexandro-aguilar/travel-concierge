@@ -1,0 +1,20 @@
+import { ConditionalWriteConflictError } from '../domain/errors/errors.js';
+import type { MessagePage, SessionMessage, SessionMetadata, Trip } from '../domain/models/session.js';
+import type { Clock, IdGenerator, Telemetry } from '../domain/ports/runtime.js';
+import type { NewSession, SessionRepository } from '../domain/ports/session-repository.js';
+
+export class InMemorySessionRepository implements SessionRepository {
+  public metadata?: SessionMetadata; public trip?: Trip; public messages: SessionMessage[] = []; public conflict = false;
+  public async create(session: NewSession): Promise<void> { this.metadata = session.metadata; this.trip = session.trip; }
+  public async appendMessage(sessionId: string, message: SessionMessage, expectedVersion: number): Promise<SessionMetadata> {
+    if (!this.metadata || this.metadata.sessionId !== sessionId) throw new ConditionalWriteConflictError();
+    if (this.conflict || this.metadata.version !== expectedVersion) throw new ConditionalWriteConflictError();
+    this.messages.push(message); this.metadata = { ...this.metadata, updatedAt: message.createdAt, version: expectedVersion + 1 }; return this.metadata;
+  }
+  public async getMetadata(sessionId: string): Promise<SessionMetadata | undefined> { return this.metadata?.sessionId === sessionId ? this.metadata : undefined; }
+  public async getMessages(sessionId: string): Promise<MessagePage> { return { messages: this.metadata?.sessionId === sessionId ? [...this.messages].reverse() : [] }; }
+  public async getTrip(sessionId: string): Promise<Trip | undefined> { return this.trip?.sessionId === sessionId ? this.trip : undefined; }
+}
+export const clock = (value = '2026-08-10T12:00:00.000Z'): Clock => ({ now: () => new Date(value) });
+export const ids = (...values: string[]): IdGenerator => ({ uuid: () => values.shift() ?? '00000000-0000-4000-8000-000000000099' });
+export const telemetry: Telemetry = { span: async (_tool, _fields, action) => action() };
