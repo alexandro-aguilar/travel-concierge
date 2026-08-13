@@ -18,15 +18,22 @@ export interface SessionMetadata {
   readonly version: number;
 }
 
+import type { PartialRequirements, Recommendation } from './concierge.js';
 export interface Trip {
   readonly sessionId: string;
   readonly status: TripStatus;
-  readonly requirements: Record<string, never>;
+  readonly requirements: PartialRequirements;
+  readonly recommendation?: Recommendation;
+  readonly failure?: {
+    readonly code:
+      'UNSUPPORTED_CURRENCY' | 'NO_FEASIBLE_ITINERARY' | 'PROVIDER_FAILURE' | 'MODEL_FAILURE';
+    readonly message: string;
+  };
 }
 
 export interface SessionMessage {
   readonly messageId: string;
-  readonly role: 'USER';
+  readonly role: 'USER' | 'ASSISTANT';
   readonly content: string;
   readonly createdAt: string;
 }

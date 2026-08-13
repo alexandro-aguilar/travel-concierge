@@ -2,6 +2,7 @@ import { InvalidTripStateError, SessionNotFoundError } from '../../domain/errors
 import type { Clock, IdGenerator, Telemetry } from '../../domain/ports/runtime.js';
 import type { SessionRepository } from '../../domain/ports/session-repository.js';
 import type { SessionMessage, Trip } from '../../domain/models/session.js';
+import type { ConciergeWorkflow } from './concierge-workflow.js';
 
 export class AppendMessageHandler {
   public constructor(
@@ -10,6 +11,7 @@ export class AppendMessageHandler {
     private readonly ids: IdGenerator,
     private readonly ttlDays: number,
     private readonly telemetry: Telemetry,
+    private readonly workflow?: ConciergeWorkflow,
   ) {}
 
   public async execute(
@@ -20,6 +22,7 @@ export class AppendMessageHandler {
     readonly sessionId: string;
     readonly message: SessionMessage;
     readonly trip: Trip;
+    readonly assistantMessage?: SessionMessage;
     readonly status: string;
   }> {
     return this.telemetry.span('appendMessage', { requestId, sessionId }, async () => {
@@ -43,7 +46,29 @@ export class AppendMessageHandler {
         metadata.version,
         expiresAt,
       );
-      return { sessionId, message, trip, status: updated.status };
+      if (!this.workflow) return { sessionId, message, trip, status: updated.status };
+      const result = await this.workflow.run(content, trip.requirements);
+      const assistantMessage: SessionMessage = {
+        messageId: this.ids.uuid(),
+        role: 'ASSISTANT',
+        content: result.assistantMessage,
+        createdAt: this.clock.now().toISOString(),
+      };
+      const finalTrip: Trip = { ...result.trip, sessionId };
+      const finalMetadata = await this.repository.updateTripAndAppendMessage(
+        sessionId,
+        finalTrip,
+        assistantMessage,
+        updated.version,
+        expiresAt,
+      );
+      return {
+        sessionId,
+        message,
+        assistantMessage,
+        trip: finalTrip,
+        status: finalMetadata.status,
+      };
     });
   }
 }

@@ -126,6 +126,66 @@ export class DynamoDbSessionRepository implements SessionRepository {
     if (!metadata) throw new ConditionalWriteConflictError();
     return metadata;
   }
+  public async updateTripAndAppendMessage(
+    sessionId: string,
+    trip: Trip,
+    message: SessionMessage,
+    expectedVersion: number,
+    expiresAt: number,
+  ): Promise<SessionMetadata> {
+    const PK = partitionKey(sessionId);
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Put: {
+                TableName: this.tableName,
+                Item: {
+                  ...message,
+                  PK,
+                  SK: `MESSAGE#${message.createdAt}#${message.messageId}`,
+                  expiresAt,
+                },
+                ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+              },
+            },
+            {
+              Put: {
+                TableName: this.tableName,
+                Item: { ...trip, PK, SK: 'TRIP', expiresAt },
+                ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+              },
+            },
+            {
+              Update: {
+                TableName: this.tableName,
+                Key: { PK, SK: 'METADATA' },
+                UpdateExpression:
+                  'SET updatedAt = :updatedAt, version = :nextVersion, #status = :status, expiresAt = :expiresAt',
+                ConditionExpression: 'version = :version AND #status = :oldStatus',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: {
+                  ':updatedAt': message.createdAt,
+                  ':nextVersion': expectedVersion + 1,
+                  ':expiresAt': expiresAt,
+                  ':version': expectedVersion,
+                  ':oldStatus': 'COLLECTING_REQUIREMENTS',
+                  ':status': trip.status,
+                },
+              },
+            },
+          ],
+        }),
+      );
+    } catch (error: unknown) {
+      if (this.isConditional(error)) throw new ConditionalWriteConflictError();
+      throw error;
+    }
+    const metadata = await this.getMetadata(sessionId);
+    if (!metadata) throw new ConditionalWriteConflictError();
+    return metadata;
+  }
   public async getMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
     const response = await this.client.send(
       new GetCommand({
@@ -172,7 +232,13 @@ export class DynamoDbSessionRepository implements SessionRepository {
     );
     const item = response.Item as TripRecord | undefined;
     return (
-      item && { sessionId: item.sessionId, status: item.status, requirements: item.requirements }
+      item && {
+        sessionId: item.sessionId,
+        status: item.status,
+        requirements: item.requirements,
+        ...(item.recommendation ? { recommendation: item.recommendation } : {}),
+        ...(item.failure ? { failure: item.failure } : {}),
+      }
     );
   }
   private isConditional(error: unknown): boolean {

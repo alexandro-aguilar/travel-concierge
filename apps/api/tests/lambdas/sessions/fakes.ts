@@ -41,6 +41,29 @@ export class InMemorySessionRepository implements SessionRepository {
     };
     return this.metadata;
   }
+  public async updateTripAndAppendMessage(
+    sessionId: string,
+    trip: Trip,
+    message: SessionMessage,
+    expectedVersion: number,
+  ): Promise<SessionMetadata> {
+    if (
+      !this.metadata ||
+      this.metadata.sessionId !== sessionId ||
+      this.conflict ||
+      this.metadata.version !== expectedVersion
+    )
+      throw new ConditionalWriteConflictError();
+    this.messages.push(message);
+    this.trip = trip;
+    this.metadata = {
+      ...this.metadata,
+      status: trip.status,
+      updatedAt: message.createdAt,
+      version: expectedVersion + 1,
+    };
+    return this.metadata;
+  }
   public async getMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
     return this.metadata?.sessionId === sessionId ? this.metadata : undefined;
   }

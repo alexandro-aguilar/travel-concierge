@@ -11,6 +11,21 @@ import { DynamoDbSessionRepository } from './infrastructure/repositories/dynamod
 import { GetSessionHandler } from './queries/get-session/handler.js';
 import { GetTripHandler } from './queries/get-trip/handler.js';
 import { StructuredTelemetry } from './telemetry/telemetry.js';
+import type {
+  ConciergeModel,
+  EventSearch,
+  FlightSearch,
+  HotelSearch,
+  WeatherSearch,
+} from './domain/ports/concierge.js';
+import {
+  MockEventSearch,
+  MockFlightSearch,
+  MockHotelSearch,
+  MockWeatherSearch,
+  RuleBasedConciergeModel,
+} from './infrastructure/providers/mock-providers.js';
+import { ConciergeWorkflow } from './commands/append-message/concierge-workflow.js';
 
 export const sessionsTypes = {
   create: Symbol.for('sessions.create'),
@@ -21,6 +36,12 @@ export const sessionsTypes = {
   clock: Symbol.for('sessions.clock'),
   ids: Symbol.for('sessions.ids'),
   telemetry: Symbol.for('sessions.telemetry'),
+  workflow: Symbol.for('sessions.workflow'),
+  model: Symbol.for('sessions.model'),
+  flights: Symbol.for('sessions.flights'),
+  hotels: Symbol.for('sessions.hotels'),
+  events: Symbol.for('sessions.events'),
+  weather: Symbol.for('sessions.weather'),
 };
 
 export interface SessionsConfiguration {
@@ -43,6 +64,27 @@ export const createSessionsContainer = (configuration: SessionsConfiguration): C
   container.bind<Clock>(sessionsTypes.clock).toConstantValue({ now: () => new Date() });
   container.bind<IdGenerator>(sessionsTypes.ids).toConstantValue({ uuid: () => randomUUID() });
   container.bind<Telemetry>(sessionsTypes.telemetry).toConstantValue(new StructuredTelemetry());
+  // Mock adapters are intentionally the safe local default. Live adapters remain a configuration boundary.
+  container
+    .bind<ConciergeModel>(sessionsTypes.model)
+    .toConstantValue(new RuleBasedConciergeModel());
+  container.bind<FlightSearch>(sessionsTypes.flights).toConstantValue(new MockFlightSearch());
+  container.bind<HotelSearch>(sessionsTypes.hotels).toConstantValue(new MockHotelSearch());
+  container.bind<EventSearch>(sessionsTypes.events).toConstantValue(new MockEventSearch());
+  container.bind<WeatherSearch>(sessionsTypes.weather).toConstantValue(new MockWeatherSearch());
+  container
+    .bind(sessionsTypes.workflow)
+    .toDynamicValue(
+      (context) =>
+        new ConciergeWorkflow(
+          context.get(sessionsTypes.model),
+          context.get(sessionsTypes.flights),
+          context.get(sessionsTypes.hotels),
+          context.get(sessionsTypes.events),
+          context.get(sessionsTypes.weather),
+        ),
+    )
+    .inSingletonScope();
   container
     .bind(sessionsTypes.create)
     .toDynamicValue(
@@ -66,6 +108,7 @@ export const createSessionsContainer = (configuration: SessionsConfiguration): C
           context.get(sessionsTypes.ids),
           configuration.ttlDays,
           context.get(sessionsTypes.telemetry),
+          context.get(sessionsTypes.workflow),
         ),
     )
     .inSingletonScope();

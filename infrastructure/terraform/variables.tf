@@ -18,3 +18,27 @@ variable "sessions_lambda_zip" {
   type        = string
   description = "Path to the bundled sessions Lambda zip artifact."
 }
+variable "bedrock_model_id" {
+  type    = string
+  default = ""
+}
+variable "provider_mode" {
+  type    = string
+  default = "mock"
+  validation {
+    condition     = contains(["mock", "live"], var.provider_mode)
+    error_message = "provider_mode must be mock or live."
+  }
+}
+variable "provider_timeout_ms" {
+  type    = number
+  default = 3000
+}
+variable "amadeus_secret_id" {
+  type    = string
+  default = ""
+}
+variable "ticketmaster_secret_id" {
+  type    = string
+  default = ""
+}

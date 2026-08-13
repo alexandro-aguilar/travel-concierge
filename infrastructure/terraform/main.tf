@@ -38,11 +38,12 @@ resource "aws_iam_role" "sessions" {
 resource "aws_iam_role_policy" "sessions" {
   name = "${local.name}-sessions-least-privilege"
   role = aws_iam_role.sessions.id
-  policy = jsonencode({ Version = "2012-10-17", Statement = [
+  policy = jsonencode({ Version = "2012-10-17", Statement = concat([
     { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"], Resource = aws_dynamodb_table.sessions.arn },
+    { Effect = "Allow", Action = ["bedrock:InvokeModel"], Resource = "*" },
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.sessions.arn}:*" },
     { Effect = "Allow", Action = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"], Resource = "*" }
-  ] })
+  ], length(compact([var.amadeus_secret_id, var.ticketmaster_secret_id])) > 0 ? [{ Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = compact([var.amadeus_secret_id, var.ticketmaster_secret_id]) }] : []) })
 }
 resource "aws_lambda_function" "sessions" {
   function_name    = "${local.name}-sessions"
@@ -51,7 +52,7 @@ resource "aws_lambda_function" "sessions" {
   handler          = "handler.handler"
   filename         = var.sessions_lambda_zip
   source_code_hash = filebase64sha256(var.sessions_lambda_zip)
-  timeout          = 10
+  timeout          = 20
   tracing_config {
     mode = "Active"
   }
@@ -59,7 +60,9 @@ resource "aws_lambda_function" "sessions" {
     variables = {
       SESSIONS_TABLE_NAME = aws_dynamodb_table.sessions.name
       SESSION_TTL_DAYS    = tostring(var.session_ttl_days)
-      PROVIDER_MODE       = "mock"
+      PROVIDER_MODE       = var.provider_mode
+      BEDROCK_MODEL_ID    = var.bedrock_model_id
+      PROVIDER_TIMEOUT_MS = tostring(var.provider_timeout_ms)
     }
   }
   depends_on = [aws_cloudwatch_log_group.sessions]

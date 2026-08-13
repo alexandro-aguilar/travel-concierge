@@ -14,6 +14,13 @@ export interface SessionRepository {
     expectedVersion: number,
     expiresAt: number,
   ): Promise<SessionMetadata>;
+  updateTripAndAppendMessage(
+    sessionId: string,
+    trip: Trip,
+    message: SessionMessage,
+    expectedVersion: number,
+    expiresAt: number,
+  ): Promise<SessionMetadata>;
   getMetadata(sessionId: string): Promise<SessionMetadata | undefined>;
   getMessages(sessionId: string, cursor?: string): Promise<MessagePage>;
   getTrip(sessionId: string): Promise<Trip | undefined>;
