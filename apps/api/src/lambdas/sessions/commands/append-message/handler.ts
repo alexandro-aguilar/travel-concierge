@@ -62,12 +62,26 @@ export class AppendMessageHandler {
         updated.version,
         expiresAt,
       );
+      const finalStatus =
+        finalTrip.status === 'RECOMMENDATION_READY'
+          ? (
+              await this.repository.transitionToAwaitingApproval(
+                sessionId,
+                finalMetadata.version,
+                expiresAt,
+                this.clock.now().toISOString(),
+              )
+            ).status
+          : finalMetadata.status;
       return {
         sessionId,
         message,
         assistantMessage,
-        trip: finalTrip,
-        status: finalMetadata.status,
+        trip:
+          finalTrip.status === 'RECOMMENDATION_READY'
+            ? { ...finalTrip, status: 'AWAITING_APPROVAL' }
+            : finalTrip,
+        status: finalStatus,
       };
     });
   }

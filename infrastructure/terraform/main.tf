@@ -78,7 +78,7 @@ resource "aws_apigatewayv2_integration" "sessions" {
   payload_format_version = "2.0"
 }
 resource "aws_apigatewayv2_route" "sessions" {
-  for_each  = toset(["POST /sessions", "POST /sessions/{sessionId}/messages", "GET /sessions/{sessionId}", "GET /sessions/{sessionId}/trip"])
+  for_each  = toset(["POST /sessions", "POST /sessions/{sessionId}/messages", "POST /sessions/{sessionId}/approve", "GET /sessions/{sessionId}", "GET /sessions/{sessionId}/trip"])
   api_id    = aws_apigatewayv2_api.http.id
   route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.sessions.id}"

@@ -186,6 +186,71 @@ export class DynamoDbSessionRepository implements SessionRepository {
     if (!metadata) throw new ConditionalWriteConflictError();
     return metadata;
   }
+  public async transitionToAwaitingApproval(
+    sessionId: string,
+    expectedVersion: number,
+    expiresAt: number,
+    updatedAt: string,
+  ): Promise<SessionMetadata> {
+    return this.updateTripStatus(
+      sessionId,
+      'RECOMMENDATION_READY',
+      'AWAITING_APPROVAL',
+      expectedVersion,
+      expiresAt,
+      updatedAt,
+    );
+  }
+  public async completeSimulatedBooking(
+    sessionId: string,
+    trip: Trip,
+    expectedVersion: number,
+    expiresAt: number,
+  ): Promise<SessionMetadata> {
+    const PK = partitionKey(sessionId);
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Put: {
+                TableName: this.tableName,
+                Item: { ...trip, PK, SK: 'TRIP', expiresAt },
+                ConditionExpression:
+                  'attribute_exists(PK) AND attribute_exists(SK) AND #status = :oldStatus',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: { ':oldStatus': 'AWAITING_APPROVAL' },
+              },
+            },
+            {
+              Update: {
+                TableName: this.tableName,
+                Key: { PK, SK: 'METADATA' },
+                UpdateExpression:
+                  'SET updatedAt = :updatedAt, version = :nextVersion, #status = :status, expiresAt = :expiresAt',
+                ConditionExpression: 'version = :version AND #status = :oldStatus',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: {
+                  ':updatedAt': trip.booking?.createdAt,
+                  ':nextVersion': expectedVersion + 1,
+                  ':status': 'SIMULATED_BOOKING_COMPLETE',
+                  ':expiresAt': expiresAt,
+                  ':version': expectedVersion,
+                  ':oldStatus': 'AWAITING_APPROVAL',
+                },
+              },
+            },
+          ],
+        }),
+      );
+    } catch (error: unknown) {
+      if (this.isConditional(error)) throw new ConditionalWriteConflictError();
+      throw error;
+    }
+    const metadata = await this.getMetadata(sessionId);
+    if (!metadata) throw new ConditionalWriteConflictError();
+    return metadata;
+  }
   public async getMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
     const response = await this.client.send(
       new GetCommand({
@@ -238,6 +303,7 @@ export class DynamoDbSessionRepository implements SessionRepository {
         requirements: item.requirements,
         ...(item.recommendation ? { recommendation: item.recommendation } : {}),
         ...(item.failure ? { failure: item.failure } : {}),
+        ...(item.booking ? { booking: item.booking } : {}),
       }
     );
   }
@@ -249,5 +315,61 @@ export class DynamoDbSessionRepository implements SessionRepository {
       (error.name === 'TransactionCanceledException' ||
         error.name === 'ConditionalCheckFailedException')
     );
+  }
+  private async updateTripStatus(
+    sessionId: string,
+    fromStatus: Trip['status'],
+    toStatus: Trip['status'],
+    expectedVersion: number,
+    expiresAt: number,
+    updatedAt: string,
+  ): Promise<SessionMetadata> {
+    const PK = partitionKey(sessionId);
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Update: {
+                TableName: this.tableName,
+                Key: { PK, SK: 'TRIP' },
+                UpdateExpression: 'SET #status = :status, expiresAt = :expiresAt',
+                ConditionExpression: '#status = :oldStatus',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: {
+                  ':status': toStatus,
+                  ':oldStatus': fromStatus,
+                  ':expiresAt': expiresAt,
+                },
+              },
+            },
+            {
+              Update: {
+                TableName: this.tableName,
+                Key: { PK, SK: 'METADATA' },
+                UpdateExpression:
+                  'SET updatedAt = :updatedAt, version = :nextVersion, #status = :status, expiresAt = :expiresAt',
+                ConditionExpression: 'version = :version AND #status = :oldStatus',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: {
+                  ':updatedAt': updatedAt,
+                  ':nextVersion': expectedVersion + 1,
+                  ':status': toStatus,
+                  ':expiresAt': expiresAt,
+                  ':version': expectedVersion,
+                  ':oldStatus': fromStatus,
+                },
+              },
+            },
+          ],
+        }),
+      );
+    } catch (error: unknown) {
+      if (this.isConditional(error)) throw new ConditionalWriteConflictError();
+      throw error;
+    }
+    const metadata = await this.getMetadata(sessionId);
+    if (!metadata) throw new ConditionalWriteConflictError();
+    return metadata;
   }
 }

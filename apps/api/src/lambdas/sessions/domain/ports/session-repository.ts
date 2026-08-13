@@ -21,6 +21,18 @@ export interface SessionRepository {
     expectedVersion: number,
     expiresAt: number,
   ): Promise<SessionMetadata>;
+  transitionToAwaitingApproval(
+    sessionId: string,
+    expectedVersion: number,
+    expiresAt: number,
+    updatedAt: string,
+  ): Promise<SessionMetadata>;
+  completeSimulatedBooking(
+    sessionId: string,
+    trip: Trip,
+    expectedVersion: number,
+    expiresAt: number,
+  ): Promise<SessionMetadata>;
   getMetadata(sessionId: string): Promise<SessionMetadata | undefined>;
   getMessages(sessionId: string, cursor?: string): Promise<MessagePage>;
   getTrip(sessionId: string): Promise<Trip | undefined>;

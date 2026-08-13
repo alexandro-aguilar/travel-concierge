@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AppendMessageHandler } from '../../../src/lambdas/sessions/commands/append-message/handler.js';
+import { ApproveTripHandler } from '../../../src/lambdas/sessions/commands/approve-trip/handler.js';
 import { CreateSessionHandler } from '../../../src/lambdas/sessions/commands/create-session/handler.js';
 import { GetSessionHandler } from '../../../src/lambdas/sessions/queries/get-session/handler.js';
 import { GetTripHandler } from '../../../src/lambdas/sessions/queries/get-trip/handler.js';
@@ -37,10 +38,25 @@ describe('sessions HTTP handler', () => {
       '00000000-0000-4000-8000-000000000002',
     );
     return {
+      repository,
       create: new CreateSessionHandler(repository, clock(), generator, 30, telemetry),
       append: new AppendMessageHandler(repository, clock(), generator, 30, telemetry),
       getSession: new GetSessionHandler(repository, telemetry),
       getTrip: new GetTripHandler(repository, telemetry),
+      approve: new ApproveTripHandler(
+        repository,
+        {
+          simulate: async () => ({
+            status: 'confirmed' as const,
+            simulation: true as const,
+            confirmationId: 'DEMO-TEST',
+            createdAt: '2026-08-10T12:00:00.000Z',
+          }),
+        },
+        clock(),
+        30,
+        telemetry,
+      ),
     };
   };
   it('creates a session and returns its public contract', async () => {
@@ -88,6 +104,39 @@ describe('sessions HTTP handler', () => {
       code: 'SESSION_NOT_FOUND',
       message: 'Session not found',
       requestId: 'request-1',
+    });
+  });
+  it('requires explicit approval and labels the resulting booking as simulated', async () => {
+    const deps = dependencies();
+    await createHandler(deps)(event('POST', '/sessions'), {} as never, () => undefined);
+    const sessionId = '00000000-0000-4000-8000-000000000001';
+    deps.repository.metadata = {
+      sessionId,
+      status: 'AWAITING_APPROVAL',
+      createdAt: 'x',
+      updatedAt: 'x',
+      version: 2,
+    };
+    deps.repository.trip = { sessionId, status: 'AWAITING_APPROVAL', requirements: {} };
+    const handler = createHandler(deps);
+    const invalid = structured(
+      await handler(
+        event('POST', `/sessions/${sessionId}/approve`, '{"approval":false}'),
+        {} as never,
+        () => undefined,
+      ),
+    );
+    expect(invalid.statusCode).toBe(400);
+    const approved = structured(
+      await handler(
+        event('POST', `/sessions/${sessionId}/approve`, '{"approval":true}'),
+        {} as never,
+        () => undefined,
+      ),
+    );
+    expect(JSON.parse(approved.body)).toMatchObject({
+      booking: { simulation: true, confirmationId: 'DEMO-TEST' },
+      trip: { status: 'SIMULATED_BOOKING_COMPLETE' },
     });
   });
 });

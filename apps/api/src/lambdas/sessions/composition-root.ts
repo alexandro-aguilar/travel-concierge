@@ -26,6 +26,9 @@ import {
   RuleBasedConciergeModel,
 } from './infrastructure/providers/mock-providers.js';
 import { ConciergeWorkflow } from './commands/append-message/concierge-workflow.js';
+import { ApproveTripHandler } from './commands/approve-trip/handler.js';
+import type { BookingSimulator } from './domain/ports/booking-simulator.js';
+import { DeterministicBookingSimulator } from './infrastructure/booking/deterministic-booking-simulator.js';
 
 export const sessionsTypes = {
   create: Symbol.for('sessions.create'),
@@ -42,6 +45,8 @@ export const sessionsTypes = {
   hotels: Symbol.for('sessions.hotels'),
   events: Symbol.for('sessions.events'),
   weather: Symbol.for('sessions.weather'),
+  approve: Symbol.for('sessions.approve'),
+  bookingSimulator: Symbol.for('sessions.bookingSimulator'),
 };
 
 export interface SessionsConfiguration {
@@ -72,6 +77,16 @@ export const createSessionsContainer = (configuration: SessionsConfiguration): C
   container.bind<HotelSearch>(sessionsTypes.hotels).toConstantValue(new MockHotelSearch());
   container.bind<EventSearch>(sessionsTypes.events).toConstantValue(new MockEventSearch());
   container.bind<WeatherSearch>(sessionsTypes.weather).toConstantValue(new MockWeatherSearch());
+  container
+    .bind<BookingSimulator>(sessionsTypes.bookingSimulator)
+    .toDynamicValue(
+      (context) =>
+        new DeterministicBookingSimulator(
+          context.get(sessionsTypes.clock),
+          context.get(sessionsTypes.ids),
+        ),
+    )
+    .inSingletonScope();
   container
     .bind(sessionsTypes.workflow)
     .toDynamicValue(
@@ -128,6 +143,19 @@ export const createSessionsContainer = (configuration: SessionsConfiguration): C
       (context) =>
         new GetTripHandler(
           context.get(sessionsTypes.repository),
+          context.get(sessionsTypes.telemetry),
+        ),
+    )
+    .inSingletonScope();
+  container
+    .bind(sessionsTypes.approve)
+    .toDynamicValue(
+      (context) =>
+        new ApproveTripHandler(
+          context.get(sessionsTypes.repository),
+          context.get(sessionsTypes.bookingSimulator),
+          context.get(sessionsTypes.clock),
+          configuration.ttlDays,
           context.get(sessionsTypes.telemetry),
         ),
     )

@@ -84,4 +84,57 @@ const repository = new DynamoDbSessionRepository(DynamoDBDocumentClient.from(raw
     expect(page.messages.map((message) => message.content)).toEqual(['second', 'first']);
     expect((await repository.getMetadata(sessionId))?.version).toBe(3);
   });
+  it('conditionally persists the approval lifecycle and simulated result', async () => {
+    const sessionId = '00000000-0000-4000-8000-000000000010';
+    await repository.create({
+      metadata: {
+        sessionId,
+        status: 'COLLECTING_REQUIREMENTS',
+        createdAt: '2026-08-10T12:00:00.000Z',
+        updatedAt: '2026-08-10T12:00:00.000Z',
+        version: 1,
+      },
+      trip: { sessionId, status: 'COLLECTING_REQUIREMENTS', requirements: {} },
+      expiresAt: 1_800_000_000,
+    });
+    await repository.updateTripAndAppendMessage(
+      sessionId,
+      { sessionId, status: 'RECOMMENDATION_READY', requirements: {} },
+      {
+        messageId: '00000000-0000-4000-8000-000000000011',
+        role: 'ASSISTANT',
+        content: 'Recommendation ready',
+        createdAt: '2026-08-10T12:00:01.000Z',
+      },
+      1,
+      1_800_000_000,
+    );
+    const awaiting = await repository.transitionToAwaitingApproval(
+      sessionId,
+      2,
+      1_800_000_000,
+      '2026-08-10T12:00:02.000Z',
+    );
+    expect(awaiting.status).toBe('AWAITING_APPROVAL');
+    await repository.completeSimulatedBooking(
+      sessionId,
+      {
+        sessionId,
+        status: 'SIMULATED_BOOKING_COMPLETE',
+        requirements: {},
+        booking: {
+          status: 'confirmed',
+          simulation: true,
+          confirmationId: 'DEMO-LOCALSTACK',
+          createdAt: '2026-08-10T12:00:03.000Z',
+        },
+      },
+      3,
+      1_800_000_000,
+    );
+    expect(await repository.getTrip(sessionId)).toMatchObject({
+      status: 'SIMULATED_BOOKING_COMPLETE',
+      booking: { simulation: true, confirmationId: 'DEMO-LOCALSTACK' },
+    });
+  });
 });

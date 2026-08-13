@@ -29,6 +29,14 @@ export interface Trip {
       'UNSUPPORTED_CURRENCY' | 'NO_FEASIBLE_ITINERARY' | 'PROVIDER_FAILURE' | 'MODEL_FAILURE';
     readonly message: string;
   };
+  readonly booking?: SimulatedBooking;
+}
+
+export interface SimulatedBooking {
+  readonly status: 'confirmed';
+  readonly simulation: true;
+  readonly confirmationId: string;
+  readonly createdAt: string;
 }
 
 export interface SessionMessage {

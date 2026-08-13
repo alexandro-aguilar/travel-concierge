@@ -11,6 +11,7 @@ import {
 } from './domain/errors/errors.js';
 import type { GetSessionHandler } from './queries/get-session/handler.js';
 import type { GetTripHandler } from './queries/get-trip/handler.js';
+import type { ApproveTripHandler } from './commands/approve-trip/handler.js';
 
 const sessionIdSchema = z.uuid();
 const messageSchema = z
@@ -22,11 +23,13 @@ const messageSchema = z
   })
   .strict();
 const cursorSchema = z.string().min(1).max(4096);
+const approvalSchema = z.object({ approval: z.literal(true) }).strict();
 type Dependencies = {
   readonly create: CreateSessionHandler;
   readonly append: AppendMessageHandler;
   readonly getSession: GetSessionHandler;
   readonly getTrip: GetTripHandler;
+  readonly approve?: ApproveTripHandler;
 };
 const defaultContainer = createSessionsContainer({
   tableName: process.env.SESSIONS_TABLE_NAME ?? 'travel-concierge-sessions',
@@ -39,6 +42,7 @@ const defaultDependencies: Dependencies = {
   append: defaultContainer.get(sessionsTypes.append),
   getSession: defaultContainer.get(sessionsTypes.getSession),
   getTrip: defaultContainer.get(sessionsTypes.getTrip),
+  approve: defaultContainer.get(sessionsTypes.approve),
 };
 const response = (statusCode: number, body: object) => ({
   statusCode,
@@ -74,7 +78,7 @@ export const createHandler =
       const path = event.rawPath;
       if (event.requestContext.http.method === 'POST' && path === '/sessions')
         return response(201, await dependencies.create.execute(requestId));
-      const match = /^\/sessions\/([^/]+)(\/messages|\/trip)?$/.exec(path);
+      const match = /^\/sessions\/([^/]+)(\/messages|\/trip|\/approve)?$/.exec(path);
       if (!match)
         return response(400, {
           code: 'INVALID_REQUEST',
@@ -85,6 +89,11 @@ export const createHandler =
       if (event.requestContext.http.method === 'POST' && match[2] === '/messages') {
         const { message } = messageSchema.parse(parseBody(event.body));
         return response(200, await dependencies.append.execute(requestId, sessionId, message));
+      }
+      if (event.requestContext.http.method === 'POST' && match[2] === '/approve') {
+        approvalSchema.parse(parseBody(event.body));
+        if (!dependencies.approve) throw new Error('Approval command is not configured');
+        return response(200, await dependencies.approve.execute(requestId, sessionId));
       }
       if (event.requestContext.http.method === 'GET' && match[2] === '/trip')
         return response(200, await dependencies.getTrip.execute(requestId, sessionId));

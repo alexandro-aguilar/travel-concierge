@@ -64,6 +64,51 @@ export class InMemorySessionRepository implements SessionRepository {
     };
     return this.metadata;
   }
+  public async transitionToAwaitingApproval(
+    sessionId: string,
+    expectedVersion: number,
+    _expiresAt: number,
+    updatedAt: string,
+  ): Promise<SessionMetadata> {
+    if (
+      !this.metadata ||
+      !this.trip ||
+      this.metadata.sessionId !== sessionId ||
+      this.conflict ||
+      this.metadata.version !== expectedVersion ||
+      this.metadata.status !== 'RECOMMENDATION_READY'
+    )
+      throw new ConditionalWriteConflictError();
+    this.metadata = {
+      ...this.metadata,
+      status: 'AWAITING_APPROVAL',
+      updatedAt,
+      version: expectedVersion + 1,
+    };
+    this.trip = { ...this.trip, status: 'AWAITING_APPROVAL' };
+    return this.metadata;
+  }
+  public async completeSimulatedBooking(
+    sessionId: string,
+    trip: Trip,
+    expectedVersion: number,
+  ): Promise<SessionMetadata> {
+    if (
+      !this.metadata ||
+      this.metadata.sessionId !== sessionId ||
+      this.conflict ||
+      this.metadata.version !== expectedVersion ||
+      this.metadata.status !== 'AWAITING_APPROVAL'
+    )
+      throw new ConditionalWriteConflictError();
+    this.trip = trip;
+    this.metadata = {
+      ...this.metadata,
+      status: 'SIMULATED_BOOKING_COMPLETE',
+      version: expectedVersion + 1,
+    };
+    return this.metadata;
+  }
   public async getMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
     return this.metadata?.sessionId === sessionId ? this.metadata : undefined;
   }
