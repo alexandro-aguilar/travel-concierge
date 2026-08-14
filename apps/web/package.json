@@ -1,0 +1,18 @@
+{
+  "name": "travel-concierge-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint src tests",
+    "format": "prettier --write src tests",
+    "format:check": "prettier --check src tests"
+  },
+  "dependencies": { "@vitejs/plugin-react": "^5.1.1", "react": "^19.2.0", "react-dom": "^19.2.0", "zod": "^4.3.6" },
+  "devDependencies": { "@eslint/js": "^9.39.1", "@testing-library/jest-dom": "^6.9.1", "@testing-library/react": "^16.3.0", "@testing-library/user-event": "^14.6.1", "@types/node": "^24.10.1", "@types/react": "^19.2.7", "@types/react-dom": "^19.2.3", "eslint": "^9.39.1", "eslint-config-prettier": "^10.1.8", "globals": "^16.5.0", "jsdom": "^27.2.0", "prettier": "^3.6.2", "typescript": "^5.9.3", "typescript-eslint": "^8.46.4", "vite": "^7.2.7", "vitest": "^4.0.14" }
+}
